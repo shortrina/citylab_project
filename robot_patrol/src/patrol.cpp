@@ -104,15 +104,20 @@ void Patrol::navigation_loop() {
         direction_ = 150 * laser_angle_increment; // turn left 20 degree
         RCLCPP_INFO(this->get_logger(), "turn left ** 75 degree ** ");
       } else if ((right_min_xth >= 115) && (right_min_xth <= 140)) {
-        direction_ = 130 * laser_angle_increment; // turn left 20 degree
-        RCLCPP_INFO(this->get_logger(), "turn left ** 65 degree ** ");
-      } else if ((right_min_xth >= 55) && (right_min_xth <= 115)) {
+        direction_ = 120 * laser_angle_increment; // turn left 20 degree
+        RCLCPP_INFO(this->get_logger(), "turn left ** 60 degree ** ");
+      } else if ((right_min_xth >= 30) && (right_min_xth <= 115)) {
         direction_ = 90 * laser_angle_increment; // turn left 20 degree
         RCLCPP_INFO(this->get_logger(), "turn left ** 45 degree ** ");
       } else {
         if (right_min_dist < 0.25) {
-          direction_ = 40 * laser_angle_increment; // turn left 35 degree
-          RCLCPP_INFO(this->get_logger(), "turn left ** 20 degree ** ");
+          if ((right_min_xth >= 0) && (right_min_xth <= 15)) {
+            direction_ = 0.0;
+            RCLCPP_INFO(this->get_logger(), " ** Go Forward ** ");
+          } else {
+            direction_ = 60 * laser_angle_increment; // turn left 35 degree
+            RCLCPP_INFO(this->get_logger(), "turn left ** 30 degree ** ");
+          }
         } else {
           direction_ = 0.0;
           RCLCPP_INFO(this->get_logger(), " ** Go Forward ** ");
@@ -151,15 +156,15 @@ void Patrol::navigation_loop() {
         direction_ = -150 * laser_angle_increment; // turn right 30 degree;
         RCLCPP_INFO(this->get_logger(), " turn right ** 75 degree ** ");
       } else if ((left_min_xth > 25) && (left_min_xth <= 55)) {
-        direction_ = -130 * laser_angle_increment; // turn right 30 degree;
-        RCLCPP_INFO(this->get_logger(), " turn right ** 75 degree ** ");
-      } else if ((left_min_xth > 55) && (left_min_xth <= 110)) {
+        direction_ = -120 * laser_angle_increment; // turn right 30 degree;
+        RCLCPP_INFO(this->get_logger(), " turn right ** 60 degree ** ");
+      } else if ((left_min_xth > 55) && (left_min_xth <= 135)) {
         direction_ = -90 * laser_angle_increment; // turn right 30 degree;
         RCLCPP_INFO(this->get_logger(), " turn right ** 45 degree ** ");
-      } else if ((left_min_xth > 110) && (left_min_xth <= 165)) {
-        if (right_min_dist <= 2.5) {
-          direction_ = -50 * laser_angle_increment; // turn right 30 degree;
-          RCLCPP_INFO(this->get_logger(), " turn right ** 25 degree ** ");
+      } else if ((left_min_xth > 135) && (left_min_xth <= 165)) {
+        if (right_min_dist <= 2.0) {
+          direction_ = -60 * laser_angle_increment; // turn right 30 degree;
+          RCLCPP_INFO(this->get_logger(), " turn right ** 20 degree ** ");
         } else {
           direction_ = 0.0;
           RCLCPP_INFO(this->get_logger(), " ** Go Forward ** ");
