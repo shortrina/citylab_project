@@ -84,7 +84,7 @@ void Patrol::navigation_loop() {
   // right_max_dist, right_max_xth);
   RCLCPP_INFO(this->get_logger(), "right_min_dist: %f, right_min_xth : %d \n",
               right_min_dist, right_min_xth);
-
+  x_direction = 1;
   if (previous_angle == 0.0) {
     if (right_min_dist > 0.35) {
       if (left_min_dist < 0.30) {
@@ -96,8 +96,11 @@ void Patrol::navigation_loop() {
       }
 
     } else {
-      if (((right_min_dist >= 0.20) && (right_min_dist <= 0.30)) &&
-          ((left_min_dist >= 0.20) && (left_min_dist <= 0.30))) {
+      if ((right_min_dist == 0.12) || (right_min_dist == 0.13)) {
+        x_direction = -1;
+        direction_ = 0.0;
+      } else if (((right_min_dist >= 0.20) && (right_min_dist <= 0.30)) &&
+                 ((left_min_dist >= 0.20) && (left_min_dist <= 0.30))) {
         direction_ = 180 * laser_angle_increment;
         RCLCPP_INFO(this->get_logger(), "turn right ** 90 degree ** ");
       } else if ((right_min_xth > 140) && (right_min_xth <= 165)) {
