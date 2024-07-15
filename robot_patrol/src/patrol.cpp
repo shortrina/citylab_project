@@ -110,7 +110,7 @@ void Patrol::navigation_loop() {
         direction_ = 90 * laser_angle_increment; // turn left 20 degree
         RCLCPP_INFO(this->get_logger(), "turn left ** 45 degree ** ");
       } else {
-        if (right_min_dist < 0.25) {
+        if (right_min_dist < 0.20) {
           if ((right_min_xth >= 0) && (right_min_xth <= 15)) {
             direction_ = 0.0;
             RCLCPP_INFO(this->get_logger(), " ** Go Forward ** ");
@@ -118,6 +118,10 @@ void Patrol::navigation_loop() {
             direction_ = 60 * laser_angle_increment; // turn left 35 degree
             RCLCPP_INFO(this->get_logger(), "turn left ** 30 degree ** ");
           }
+        } else if ((right_min_dist >= 0.12) && (right_min_dist <= 0.20)) {
+          x_direction = -1;
+          direction_ = 0.0;
+          RCLCPP_INFO(this->get_logger(), " ** Go Backward ** ");
         } else {
           direction_ = 0.0;
           RCLCPP_INFO(this->get_logger(), " ** Go Forward ** ");
@@ -165,6 +169,7 @@ void Patrol::navigation_loop() {
         if (right_min_dist <= 2.0) {
           direction_ = -60 * laser_angle_increment; // turn right 30 degree;
           RCLCPP_INFO(this->get_logger(), " turn right ** 20 degree ** ");
+        } else if ((left_min_dist >= 0.12) && (left_min_dist < 2.0)) {
         } else {
           direction_ = 0.0;
           RCLCPP_INFO(this->get_logger(), " ** Go Forward ** ");
@@ -190,7 +195,7 @@ void Patrol::navigation_loop() {
   RCLCPP_INFO(this->get_logger(), "direction: %f", direction_);
   // int scan_size = scan_end - scan_start;
   /*Publish the velocity*/
-  cmd_vel->linear.x = 0.1;
+  cmd_vel->linear.x = 0.1 * x_direction;
   cmd_vel->angular.z = direction_;
 
   // RCLCPP_INFO(this->get_logger(), "direction: %f", direction_);
