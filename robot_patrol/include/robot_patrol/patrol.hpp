@@ -52,9 +52,8 @@ private:
   float laser_distance_min = 0.12; // 12cm
   float laser_distance_max = 30.0; // 3M
 
-  float prev_rotate_angular_value =
-      0.0; // previous motion status of robot , 0 : go straight, or previous
-           // rotate motion value.
+  float previous_angle = 0.0; // previous motion status of robot , 0 : go
+                              // straight, or previous rotate motion value.
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr pub_;
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr sub_;
