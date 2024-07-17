@@ -52,9 +52,9 @@ void Patrol::navigation_loop() {
   auto scan_start = laser_msg.begin() + 165; // ranges[165] ==> -90(-pi/2)
   auto scan_end = laser_msg.begin() + 475;   // ranges[475] ==> 90(pi/2)
   int scan_mid_index = 165;
-  // float avoid_distance = 0.35; // 30cm
-  //  int turn_right = -1;         // turn clockwise
-  //  int turn_left = 1;           // turn counter clock wise
+  //   float avoid_distance = 0.35; // 30cm
+  //    int turn_right = -1;         // turn clockwise
+  //    int turn_left = 1;           // turn counter clock wise
 
   int turn_direction = 0;
   auto min_it = std::min_element(scan_start, scan_end);
@@ -71,28 +71,75 @@ void Patrol::navigation_loop() {
 
   if (min_xth < scan_mid_index) {
     turn_direction = 1;
-    min_xth = 40 + min_xth;
-    RCLCPP_INFO(this->get_logger(), " Turn LEFT ");
+    min_xth = min_xth + 30;
   } else {
     turn_direction = -1;
-    min_xth = 370 - min_xth;
+    min_xth = (360 - min_xth);
+  }
+
+#if 0
+  if (min_xth <= 60) {
+    turn_direction = 1;
+    min_xth = 30 + min_xth;
+    RCLCPP_INFO(this->get_logger(), " Turn LEFT ");
+  } else if ((min_xth >= 61) && (min_xth < 120)) {
+    turn_direction = 1;
+    min_xth = min_xth;
+    RCLCPP_INFO(this->get_logger(), " Turn LEFT ");
+  } else if ((min_xth >= 121) && (min_xth <= 165)) {
+    turn_direction = 1;
+    min_xth = min_xth;
+    RCLCPP_INFO(this->get_logger(), " Turn LEFT ");
+  } else if ((min_xth >= 166) && (min_xth < 226)) {
+    turn_direction = -1;
+    min_xth = (330 - min_xth);
+    RCLCPP_INFO(this->get_logger(), " Turn RIGHT ");
+  } else if ((min_xth >= 226) && (min_xth < 286)) {
+    turn_direction = -1;
+    min_xth = (330 - min_xth);
+    RCLCPP_INFO(this->get_logger(), " Turn RIGHT ");
+  } else {
+    turn_direction = -1;
+    min_xth = (330 - min_xth) + 30;
     RCLCPP_INFO(this->get_logger(), " Turn RIGHT ");
   }
+#endif
 
   if (previous_angle == 0.0) {
     if (min_dist <= 0.35) {
       direction_ = turn_direction * min_xth * laser_angle_increment;
       RCLCPP_INFO(this->get_logger(), "direction : %f", direction_);
+    } else if ((min_dist >= 0.14) && (min_dist <= 0.20)) {
+      x_direction = 1;
+      direction_ = turn_direction * min_xth * laser_angle_increment;
+    } else if (min_dist <= 0.13) {
+      x_direction = -1;
+      direction_ = 0.0;
+      RCLCPP_INFO(this->get_logger(), "Go Backward, too close to Wall");
     }
   } else {
-    direction_ = 0.0;
-    RCLCPP_INFO(this->get_logger(), "previous_angle != 0.0");
+    if (min_dist > 0.35) {
+      direction_ = 0.0;
+      RCLCPP_INFO(this->get_logger(), "previous_angle != 0.0");
+    } else if ((min_dist >= 0.14) && (min_dist <= 0.20)) {
+      x_direction = 1;
+      direction_ = turn_direction * min_xth * laser_angle_increment;
+    } else if (min_dist <= 0.13) {
+      x_direction = -1;
+      direction_ = 0.0;
+      RCLCPP_INFO(this->get_logger(), "Go Backward, too close to Wall");
+    } else {
+      direction_ = turn_direction * min_xth * laser_angle_increment;
+    }
   }
 
   previous_angle = direction_;
   RCLCPP_INFO(this->get_logger(), "direction: %f", direction_);
   // int scan_size = scan_end - scan_start;
   /*Publish the velocity*/
+  // cmd_vel->linear.x = -0.1;
+  // cmd_vel->angular.z = 0.0;
+
   cmd_vel->linear.x = 0.1;
   cmd_vel->angular.z = direction_;
 

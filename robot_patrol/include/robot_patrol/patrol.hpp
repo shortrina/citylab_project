@@ -55,6 +55,8 @@ private:
   float previous_angle = 0.0; // previous motion status of robot , 0 : go
                               // straight, or previous rotate motion value.
 
+  int x_direction = 1;
+
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr pub_;
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr sub_;
   rclcpp::TimerBase::SharedPtr navigation_timer_;
