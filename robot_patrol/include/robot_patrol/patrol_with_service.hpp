@@ -9,7 +9,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/timer.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
-#include <std_srvs/srv/trigger.hpp>
 #include <vector>
 
 using DirectionMsg = custom_interfaces::srv::GetDirection;
@@ -22,27 +21,34 @@ using namespace std::placeholders;
 
 class Patrol : public rclcpp::Node {
 public:
-  Patrol() : Node("patrol_with_service")
-        {
+  Patrol() : Node("patrol_with_service") {
     // Initialize your publisher, timer, etc. here
     // Initialize one Reentrant callback group object
-    navi_callback_group_ =
-    this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    navi_callback_group_ = this->create_callback_group(
+        rclcpp::CallbackGroupType::MutuallyExclusive);
 
     timer_cb_group_ = navi_callback_group_;
     sub_cb_group_ = timer_cb_group_;
-    navigation_options.callback_group = navi_callback_group_;
+    navigation_options.callback_group = sub_cb_group_;
 
+#if 0 /* ROS2 Rolling*/
     client_ = this->create_client<custom_interfaces::srv::GetDirection>(
-        "direction_service",rclcpp::ServicesQoS() ,
+        "direction_service", rclcpp::ServicesQoS(), navi_callback_group_);
+#else /* ROS2 Humble*/
+    client_ = this->create_client<custom_interfaces::srv::GetDirection>(
+        "direction_service", rmw_qos_profile_services_default,
         navi_callback_group_);
+#endif
+    pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+    sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+        "/scan", 10,
+        std::bind(&Patrol::scanCallback, this, std::placeholders::_1),
+        navigation_options);
 
-    pub_  =  this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
-    sub_  =  this->create_subscription<sensor_msgs::msg::LaserScan>("/scan", 10, std::bind(&Patrol::scanCallback, this, std::placeholders::_1),navigation_options);
-                
-    navigation_timer_ = this->create_wall_timer(500ms, std::bind(&Patrol::navigation_loop, this),navi_callback_group_); 
+    navigation_timer_ = this->create_wall_timer(
+        500ms, std::bind(&Patrol::navigation_loop, this), timer_cb_group_);
 
-  }//end of constructor
+  } // end of constructor
 
   ~Patrol() { stop(); }
 
@@ -58,11 +64,12 @@ private:
   rclcpp::Client<DirectionMsg>::SharedPtr client_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr pub_;
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr sub_;
-  
+
   rclcpp::TimerBase::SharedPtr navigation_timer_; // controller
-  std::shared_ptr<LaserScanMsg> last_laser_; //store the last laser information
+  std::shared_ptr<LaserScanMsg> last_laser_; // store the last laser information
 
   void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
+  void response_callback(rclcpp::Client<DirectionMsg>::SharedFuture future);
   void navigation_loop();
 };
 

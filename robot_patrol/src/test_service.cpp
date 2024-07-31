@@ -46,17 +46,43 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
   std::shared_ptr<LaserScanMsg> laser_info_;
 
+  void response_callback(rclcpp::Client<DirectionMsg>::Response response) {
+    auto status = response.wait_for(1s);
+    if (status == std::future_status::ready) {
+      RCLCPP_INFO(this->get_logger(), "Result: success");
+      auto response = future.get();
+      RCLCPP_INFO(this->get_logger(), "Get Direction: %s from Server",
+                  response->direction.c_str());
+      if (response->direction == "Left") {
+        auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
+        cmd_vel->linear.x = 0.1;
+        cmd_vel->angular.z = 0.5;
+        pub_->publish(std::move(cmd_vel));
+        RCLCPP_INFO(this->get_logger(), "Go Left");
+      } else if (response->direction == "Right") {
+        auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
+        cmd_vel->linear.x = 0.1;
+        cmd_vel->angular.z = -0.5;
+        pub_->publish(std::move(cmd_vel));
+      } else if (response->direction == "Forward") {
+        auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
+        cmd_vel->linear.x = 0.1;
+        cmd_vel->angular.z = 0.0;
+        pub_->publish(std::move(cmd_vel));
+      } else {
+        RCLCPP_ERROR(this->get_logger(), "Failed to call service");
+      }
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Service In-Progress...");
+    }
+  }
+
   void timer_callback() {
     auto request = std::make_shared<DirectionMsg::Request>();
     request->laser_data = *laser_info_;
-    auto result = client_->async_send_request(request);
-    if (rclcpp::ok()) {
-      auto response = result.get();
-      RCLCPP_INFO(this->get_logger(), "Direction: %s",
-                  response->direction.c_str());
-    } else {
-      RCLCPP_ERROR(this->get_logger(), "Failed to call service");
-    }
+    client_->async_send_request(request,
+                                std::bind(&TestService::response_callback, this,
+                                          std::placeholders::_1));
   }
 
   void scan_callback(const std::shared_ptr<LaserScanMsg> msg) {
