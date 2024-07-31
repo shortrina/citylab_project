@@ -4,7 +4,6 @@
 #include <custom_interfaces/srv/get_direction.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
-#include <geometry_msgs/msg/twist.hpp>
 
 #include <algorithm>
 #include <array>
@@ -15,7 +14,6 @@
 
 using DirectionMsg = custom_interfaces::srv::GetDirection;
 using LaserScanMsg = sensor_msgs::msg::LaserScan;
-using TwistMsg = geometry_msgs::msg::Twist;
 
 using namespace std::chrono_literals;
 using namespace std::placeholders;
@@ -26,12 +24,10 @@ public:
     DirectionService() : Node("service_server")
     {
         server_ = this->create_service<DirectionMsg>("direction_service", std::bind(&DirectionService::get_direction_callback, this, _1,_2));
-        pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
     }
 
 private:
     rclcpp::Service<DirectionMsg>::SharedPtr server_;
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr pub_;
     
     void get_direction_callback(const std::shared_ptr<DirectionMsg::Request> request, const std::shared_ptr<DirectionMsg::Response> response)
     {
@@ -62,34 +58,20 @@ private:
         if(max_dist == total_dist_sec[0])
         {
             RCLCPP_INFO(this->get_logger(), "Left");
-            auto msg = std::make_shared<geometry_msgs::msg::Twist>();
-            msg->linear.x = 0.1;
-            msg->angular.z = 0.1;
-            pub_->publish(*msg);
             response->direction = "Left";
         }
         else if(max_dist == total_dist_sec[1])
         {
             RCLCPP_INFO(this->get_logger(), "Mid");
-            auto msg = std::make_shared<geometry_msgs::msg::Twist>();
-            msg->linear.x = 0.1;
-            msg->angular.z = 0.0;
-            pub_->publish(*msg);
             response->direction = "Forward";
         }
         else
         {
             RCLCPP_INFO(this->get_logger(), "Right");
-            auto msg = std::make_shared<geometry_msgs::msg::Twist>();
-            msg->linear.x = 0.1;
-            msg->angular.z = -0.1;
-            pub_->publish(*msg);
             response->direction = "Right";
         }
 
     }
-
-
 };
 
 
