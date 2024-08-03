@@ -8,10 +8,16 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(std_msgs)
+find_package(rclcpp_action REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(robot_patrol REQUIRED)
 find_package(custom_interfaces REQUIRED)
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -25,17 +31,23 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/GoToPose.action"
+  DEPENDENCIES geometry_msgs
+)
+
 #include directories
 include_directories(include)
 
 add_executable(service_server_node src/direction_service.cpp)
 add_executable(patrol_with_service_node src/patrol_with_service.cpp)
-#add_executable(service_client_node src/test_service.cpp)
+add_executable(service_client_node src/test_service.cpp)
+add_executable(go_to_pose_action_node src/go_to_pose_action.cpp)
 
 ament_target_dependencies(service_server_node rclcpp geometry_msgs sensor_msgs custom_interfaces)
-#ament_target_dependencies(service_client_node rclcpp geometry_msgs sensor_msgs custom_interfaces)
+ament_target_dependencies(service_client_node rclcpp geometry_msgs sensor_msgs custom_interfaces)
 ament_target_dependencies(patrol_with_service_node rclcpp geometry_msgs sensor_msgs std_msgs custom_interfaces)
-
+ament_target_dependencies(go_to_pose_action_node rclcpp tf2 rclcpp_action geometry_msgs nav_msgs robot_patrol)
 
 #add_executable(robot_patrol src/robot_patrol.cpp)
 #add_executable(robot_patrol_node src/patrol.cpp)
@@ -43,11 +55,13 @@ ament_target_dependencies(patrol_with_service_node rclcpp geometry_msgs sensor_m
 #add_dependencies(robot_patrol ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 #ament_target_dependencies(robot_patrol_node rclcpp geometry_msgs sensor_msgs)
 
-install(TARGETS
-    service_server_node
-    patrol_with_service_node
-  DESTINATION lib/${PROJECT_NAME})
 
+install(TARGETS
+	service_server_node
+	service_client_node
+	patrol_with_service_node
+	go_to_pose_action_node
+  DESTINATION lib/${PROJECT_NAME})
 
 #install the launch directoy
 install(DIRECTORY
