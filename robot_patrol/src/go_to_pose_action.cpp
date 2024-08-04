@@ -1,6 +1,7 @@
 /* Implement Action Server of go_to_pose action*/
 
 #include <chrono>
+#include <cmath>
 #include <geometry_msgs/msg/pose2_d.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <memory>
@@ -49,77 +50,40 @@ private:
   geometry_msgs::msg::Pose2D
       desired_pos_; // get the goal value from client (float x,y,theta)
 
-  TwistMsg current_twist;
-
-  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
-    /*Get the postion not twist*/
-    current_pos_ = ConvertOdometryToPose2D(msg);
-    current_twist = ConvertOdometryToTwist(msg);
-    RCLCPP_INFO(this->get_logger(),
-                "current_twist.linear.x : %f, current_twist.linear.y: %f, "
-                "current_twist.angular.z : %f",
-                current_twist.linear.x, current_twist.linear.y,
-                current_twist.angular.z);
-  }
+  float linear_speed_x = 0.2;
 
   geometry_msgs::msg::Pose2D
   ConvertOdometryToPose2D(const nav_msgs::msg::Odometry::SharedPtr msg) {
     geometry_msgs::msg::Pose2D pose;
     pose.x = msg->pose.pose.position.x;
     pose.y = msg->pose.pose.position.y;
-    pose.theta = msg->pose.pose.orientation.z;
-    return pose;
-  }
-
-  nav_msgs::msg::Odometry::SharedPtr
-  ConvertPose2DToOdometry(const geometry_msgs::msg::Pose2D pose) {
-    nav_msgs::msg::Odometry::SharedPtr msg;
-    msg->pose.pose.position.x = pose.x;
-    msg->pose.pose.position.y = pose.y;
-    msg->pose.pose.orientation.z = pose.theta;
-    return msg;
-  }
-  /*Function to convert Odometry to Twist*/
-  TwistMsg
-  ConvertOdometryToTwist(const nav_msgs::msg::Odometry::SharedPtr msg) {
-    geometry_msgs::msg::Twist twist;
-
-    // Convert position to linear velocity
-    twist.linear.x = msg->pose.pose.position.x;
-    twist.linear.y = msg->pose.pose.position.y;
-
-    // Convert orientation quaternion to Euler angles
+    // Convert quaternion to Euler angles
     tf2::Quaternion q(
         msg->pose.pose.orientation.x, msg->pose.pose.orientation.y,
         msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
     tf2::Matrix3x3 m(q);
     double roll, pitch, yaw;
     m.getRPY(roll, pitch, yaw);
+    // pose.theta = (3.14 - yaw);
+    pose.theta = yaw;
 
-    // Set angular velocity to yaw (theta)
-    twist.angular.z = yaw;
-
-    return twist;
+    return pose;
   }
 
-  /*Function to convert Twist to Odometry*/
-  nav_msgs::msg::Odometry
-  ConvertTwistToOdometry(const geometry_msgs::msg::Twist &twist) {
-    nav_msgs::msg::Odometry odom;
+  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+    /*Get the postion not twist*/
+    current_pos_ = ConvertOdometryToPose2D(msg);
+  }
 
-    // Convert linear velocity to position
-    odom.pose.pose.position.x = twist.linear.x;
-    odom.pose.pose.position.y = twist.linear.y;
+  geometry_msgs::msg::Pose2D
+  Calculate_distances(const geometry_msgs::msg::Pose2D pose) {
+    geometry_msgs::msg::Pose2D left_pose;
 
-    // Convert angular velocity (z) to orientation quaternion
-    tf2::Quaternion q;
-    q.setRPY(0, 0, twist.angular.z);
-    odom.pose.pose.orientation.x = q.x();
-    odom.pose.pose.orientation.y = q.y();
-    odom.pose.pose.orientation.z = q.z();
-    odom.pose.pose.orientation.w = q.w();
+    left_pose.x = desired_pos_.x - pose.x;
+    left_pose.y = desired_pos_.y - pose.y;
+    left_pose.theta = (desired_pos_.theta * M_PI / 180) - pose.theta;
 
-    return odom;
+    return left_pose;
   }
 
   rclcpp_action::GoalResponse
@@ -146,40 +110,61 @@ private:
   void execute_callback(const std::shared_ptr<GoalHandleGoToPose> goal_handle) {
     auto feedback = std::make_shared<GoToPoseAction::Feedback>();
     auto result = std::make_shared<GoToPoseAction::Result>();
+    rclcpp::Rate loop_rate(10); // Hz for each control loop
+    geometry_msgs::msg::Pose2D left_pose;
+    TwistMsg cmd_vel;
+    float direction = 0.0;
+    float linear_speed_x = 0.0;
+    float angular_speed_z = 0.0;
 
     RCLCPP_INFO(this->get_logger(), "Action server is executing");
 
     while (rclcpp::ok()) {
       if (goal_handle->is_active()) {
-        if (desired_pos_.x == current_pos_.x &&
-            desired_pos_.y == current_pos_.y &&
-            desired_pos_.theta == current_pos_.theta) {
+        RCLCPP_INFO(this->get_logger(), "goal_handle->is_active()");
+        left_pose = Calculate_distances(current_pos_);
+        if ((fabs(left_pose.x) < 0.1) && (fabs(left_pose.y) < 0.1) &&
+            (fabs(left_pose.theta) < 0.1)) {
           result->status = true;
+          stop();
           goal_handle->succeed(result);
-          auto odometry = ConvertPose2DToOdometry(current_pos_);
-          auto cmd_vel = ConvertOdometryToTwist(odometry);
-          pub_->publish(cmd_vel);
           break;
         } else {
-          feedback->current_pos.x = sqrt((current_pos_.x - desired_pos_.x) *
-                                             (current_pos_.x - desired_pos_.x) +
-                                         (current_pos_.y - desired_pos_.y) *
-                                             (current_pos_.y - desired_pos_.y));
-          feedback->current_pos.y = current_pos_.y;
-          feedback->current_pos.theta = current_pos_.theta;
-          goal_handle->publish_feedback(feedback);
-          auto odometry = ConvertPose2DToOdometry(feedback->current_pos);
-          auto cmd_vel = ConvertOdometryToTwist(odometry);
+          RCLCPP_INFO(this->get_logger(),
+                      "Calculate position and return feedback");
+          direction = atan2(left_pose.x, left_pose.y);
+          if (fabs(left_pose.x) < 0.1 && fabs(left_pose.y) < 0.1) {
+            linear_speed_x = 0.0;
+            // compute the angular speed based on the difference between the
+            // desired theta and the current theta
+            angular_speed_z = 0.5 * left_pose.theta;
+          } else {
+            linear_speed_x = 0.2;
+            // compute the angular speed based on the difference between the
+            // direction and the current theta
+            angular_speed_z = 0.5 * (direction - current_pos_.theta);
+          }
+
+          if (angular_speed_z > (M_PI / 2))
+            angular_speed_z = M_PI / 2;
+          else if (angular_speed_z < -(M_PI / 2))
+            angular_speed_z = -(M_PI / 2);
+
+          cmd_vel.linear.x = linear_speed_x;
+          cmd_vel.angular.z = angular_speed_z;
           pub_->publish(cmd_vel);
+
+          feedback->current_pos.x = current_pos_.x;
+          feedback->current_pos.y = current_pos_.y;
+          feedback->current_pos.theta = current_pos_.theta * 180 / M_PI;
+          goal_handle->publish_feedback(feedback);
         }
-      } else {
-        if (goal_handle->is_canceling()) {
-          result->status = false;
-          goal_handle->canceled(result);
-        }
+      } else if (goal_handle->is_canceling()) {
+        result->status = false;
+        goal_handle->canceled(result);
         break;
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      loop_rate.sleep();
     }
   }
 
@@ -189,6 +174,13 @@ private:
       return this->execute_callback(goal_handle);
     };
     std::thread{execute_in_thread}.detach();
+  }
+
+  void stop() {
+    TwistMsg cmd_vel;
+    cmd_vel.linear.x = 0.0;
+    cmd_vel.angular.z = 0.0;
+    pub_->publish(cmd_vel);
   }
 };
 
