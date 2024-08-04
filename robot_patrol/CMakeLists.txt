@@ -15,7 +15,6 @@ find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-find_package(robot_patrol REQUIRED)
 find_package(custom_interfaces REQUIRED)
 
 
@@ -31,11 +30,6 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-rosidl_generate_interfaces(${PROJECT_NAME}
-  "action/GoToPose.action"
-  DEPENDENCIES geometry_msgs
-)
-
 #include directories
 include_directories(include)
 
@@ -47,7 +41,7 @@ add_executable(go_to_pose_action_node src/go_to_pose_action.cpp)
 ament_target_dependencies(service_server_node rclcpp geometry_msgs sensor_msgs custom_interfaces)
 ament_target_dependencies(service_client_node rclcpp geometry_msgs sensor_msgs custom_interfaces)
 ament_target_dependencies(patrol_with_service_node rclcpp geometry_msgs sensor_msgs std_msgs custom_interfaces)
-ament_target_dependencies(go_to_pose_action_node rclcpp tf2 rclcpp_action geometry_msgs nav_msgs robot_patrol)
+ament_target_dependencies(go_to_pose_action_node rclcpp tf2 rclcpp_action geometry_msgs nav_msgs)
 
 #add_executable(robot_patrol src/robot_patrol.cpp)
 #add_executable(robot_patrol_node src/patrol.cpp)
@@ -55,6 +49,22 @@ ament_target_dependencies(go_to_pose_action_node rclcpp tf2 rclcpp_action geomet
 #add_dependencies(robot_patrol ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 #ament_target_dependencies(robot_patrol_node rclcpp geometry_msgs sensor_msgs)
 
+# rosidl_generate_interfaces comes after add_executable and ament_target_dependencies and before rosidl_target_interfaces
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/GoToPose.action"
+  DEPENDENCIES geometry_msgs
+)
+
+# rosidl_target_interfaces should be defined after rosidl_generate_interfaces
+
+rosidl_target_interfaces(go_to_pose_action_node
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
+# BUILD_TESTING comes before install commands sequence
+if(BUILD_TESTING)
+find_package(ament_lint_auto REQUIRED)
+ament_lint_auto_find_test_dependencies()
+endif()
 
 install(TARGETS
 	service_server_node
