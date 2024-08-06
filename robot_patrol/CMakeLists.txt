@@ -51,9 +51,13 @@ ament_target_dependencies(go_to_pose_action_node rclcpp tf2 rclcpp_action geomet
 
 # rosidl_generate_interfaces comes after add_executable and ament_target_dependencies and before rosidl_target_interfaces
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "action/GoToPose.action"
-  DEPENDENCIES geometry_msgs
+"action/GoToPose.action"
+DEPENDENCIES geometry_msgs
 )
+
+# rosidl_target_interfaces should be defined after rosidl_generate_interfaces
+rosidl_target_interfaces(go_to_pose_action_node
+${PROJECT_NAME} "rosidl_typesupport_cpp")
 
 # rosidl_target_interfaces should be defined after rosidl_generate_interfaces
 

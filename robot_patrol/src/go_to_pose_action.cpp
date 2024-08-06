@@ -50,40 +50,28 @@ private:
   geometry_msgs::msg::Pose2D
       desired_pos_; // get the goal value from client (float x,y,theta)
 
-  float linear_speed_x = 0.2;
-
-  geometry_msgs::msg::Pose2D
-  ConvertOdometryToPose2D(const nav_msgs::msg::Odometry::SharedPtr msg) {
-    geometry_msgs::msg::Pose2D pose;
-    pose.x = msg->pose.pose.position.x;
-    pose.y = msg->pose.pose.position.y;
-    // Convert quaternion to Euler angles
-    tf2::Quaternion q(
-        msg->pose.pose.orientation.x, msg->pose.pose.orientation.y,
-        msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
-    tf2::Matrix3x3 m(q);
-    double roll, pitch, yaw;
-    m.getRPY(roll, pitch, yaw);
-    // pose.theta = (3.14 - yaw);
-    pose.theta = yaw;
-
-    return pose;
-  }
+  float distance_ = 0.0;
+  float angle_ = 0.0;
 
   void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
     /*Get the postion not twist*/
-    current_pos_ = ConvertOdometryToPose2D(msg);
+    current_pos_.x = msg->pose.pose.position.x;
+    current_pos_.y = msg->pose.pose.position.y;
+    current_pos_.theta = msg->pose.pose.orientation.z;
   }
 
-  geometry_msgs::msg::Pose2D
-  Calculate_distances(const geometry_msgs::msg::Pose2D pose) {
-    geometry_msgs::msg::Pose2D left_pose;
+  void calculate_direction() {
+    // Calculate distance and angle to goal
+    double dx = desired_pos_.x - current_pos_.x;
+    double dy = desired_pos_.y - current_pos_.y;
+    distance_ = std::sqrt(dx * dx + dy * dy);
+    angle_ = std::atan2(dy, dx) - current_pos_.theta;
 
-    left_pose.x = desired_pos_.x - pose.x;
-    left_pose.y = desired_pos_.y - pose.y;
-    left_pose.theta = (desired_pos_.theta * M_PI / 180) - pose.theta;
-
-    return left_pose;
+    // Normalize angle
+    while (angle_ > M_PI)
+      angle_ -= 2 * M_PI;
+    while (angle_ < -M_PI)
+      angle_ += 2 * M_PI;
   }
 
   rclcpp_action::GoalResponse
@@ -108,64 +96,45 @@ private:
   }
 
   void execute_callback(const std::shared_ptr<GoalHandleGoToPose> goal_handle) {
-    auto feedback = std::make_shared<GoToPoseAction::Feedback>();
-    auto result = std::make_shared<GoToPoseAction::Result>();
-    rclcpp::Rate loop_rate(10); // Hz for each control loop
-    geometry_msgs::msg::Pose2D left_pose;
-    TwistMsg cmd_vel;
-    float direction = 0.0;
-    float linear_speed_x = 0.0;
-    float angular_speed_z = 0.0;
+    RCLCPP_INFO(this->get_logger(), "Executing goal");
+    auto feedback = std::make_shared<GoToPose::Feedback>();
+    auto result = std::make_shared<GoToPose::Result>();
 
-    RCLCPP_INFO(this->get_logger(), "Action server is executing");
-
+    auto rate = std::make_shared<rclcpp::Rate>(10);
     while (rclcpp::ok()) {
-      if (goal_handle->is_active()) {
-        RCLCPP_INFO(this->get_logger(), "goal_handle->is_active()");
-        left_pose = Calculate_distances(current_pos_);
-        if ((fabs(left_pose.x) < 0.1) && (fabs(left_pose.y) < 0.1) &&
-            (fabs(left_pose.theta) < 0.1)) {
-          result->status = true;
-          stop();
-          goal_handle->succeed(result);
-          break;
-        } else {
-          RCLCPP_INFO(this->get_logger(),
-                      "Calculate position and return feedback");
-          direction = atan2(left_pose.x, left_pose.y);
-          if (fabs(left_pose.x) < 0.1 && fabs(left_pose.y) < 0.1) {
-            linear_speed_x = 0.0;
-            // compute the angular speed based on the difference between the
-            // desired theta and the current theta
-            angular_speed_z = 0.5 * left_pose.theta;
-          } else {
-            linear_speed_x = 0.2;
-            // compute the angular speed based on the difference between the
-            // direction and the current theta
-            angular_speed_z = 0.5 * (direction - current_pos_.theta);
-          }
-
-          if (angular_speed_z > (M_PI / 2))
-            angular_speed_z = M_PI / 2;
-          else if (angular_speed_z < -(M_PI / 2))
-            angular_speed_z = -(M_PI / 2);
-
-          cmd_vel.linear.x = linear_speed_x;
-          cmd_vel.angular.z = angular_speed_z;
-          pub_->publish(cmd_vel);
-
-          feedback->current_pos.x = current_pos_.x;
-          feedback->current_pos.y = current_pos_.y;
-          feedback->current_pos.theta = current_pos_.theta * 180 / M_PI;
-          goal_handle->publish_feedback(feedback);
-        }
-      } else if (goal_handle->is_canceling()) {
-        result->status = false;
+      if (goal_handle->is_canceling()) {
         goal_handle->canceled(result);
-        break;
+        stop();
+        RCLCPP_INFO(this->get_logger(), "Goal canceled");
+        return;
       }
-      loop_rate.sleep();
-    }
+
+      calculate_direction();
+
+      // Check if we've reached the goal
+      if (distance_ < 0.1 && std::abs(angle_) < 0.1) {
+        stop();
+        goal_handle->succeed(result);
+        RCLCPP_INFO(this->get_logger(), "Goal succeeded");
+        return;
+      }
+
+      // Create and publish Twist message
+      auto twist_msg = geometry_msgs::msg::Twist();
+      twist_msg.linear.x = 0.2;
+      twist_msg.angular.z = angle_;
+      pub_->publish(twist_msg);
+
+      // Publish feedback
+      feedback->current_pos = current_pos_;
+      goal_handle->publish_feedback(feedback);
+
+      rate->sleep();
+    } // end while
+
+    // If we're here, something went wrong
+    goal_handle->abort(result);
+    RCLCPP_INFO(this->get_logger(), "Goal aborted");
   }
 
   void
