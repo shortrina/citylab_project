@@ -107,7 +107,7 @@ private:
         distance = std::sqrt(delta_x * delta_x + delta_y * delta_y);
         angle_to_goal = std::atan2(delta_y, delta_x);
         angle_diff = angle_to_goal - yaw_;
-        angle_diff = std::atan2(std::sin(angle_diff), std::cos(angle_diff));
+        // angle_diff = std::atan2(std::sin(angle_diff), std::cos(angle_diff));
         if (distance < 0.1) {
           result->status = true;
           stop();
