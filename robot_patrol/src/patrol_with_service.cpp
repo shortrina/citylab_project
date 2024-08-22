@@ -20,9 +20,11 @@ void Patrol::response_callback(
   auto status = future.wait_for(1s);
   if (status == std::future_status::ready) {
     RCLCPP_INFO(this->get_logger(), "Result: success");
+
     auto response = future.get();
     RCLCPP_INFO(this->get_logger(), "Get Direction: %s from Server",
                 response->direction.c_str());
+
     if (response->direction == "Left") {
       auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
       cmd_vel->linear.x = 0.1;
@@ -49,6 +51,7 @@ void Patrol::response_callback(
 
 void Patrol::navigation_loop() {
   auto request = std::make_shared<DirectionMsg::Request>();
+
   request->laser_data = *last_laser_;
   RCLCPP_INFO(this->get_logger(), "Requesting Service");
   client_->async_send_request(request,

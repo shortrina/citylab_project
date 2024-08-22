@@ -27,9 +27,14 @@ public:
     client_ = this->create_client<custom_interfaces::srv::GetDirection>(
         "direction_service", rmw_qos_profile_services_default,
         client_cb_group_);
+
     sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-        "/scan", rclcpp::SensorDataQoS(),
-        std::bind(&TestService::scan_callback, this, _1), sub_options);
+        "/scan", 10, std::bind(&TestService::scan_callback, this, _1),
+        sub_options);
+
+    //    pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel",
+    //    10);
+
     timer_ = this->create_wall_timer(
         500ms, std::bind(&TestService::timer_callback, this), timer_cb_group_);
   }
@@ -42,33 +47,28 @@ private:
   rclcpp::SubscriptionOptions sub_options;
   rclcpp::Client<DirectionMsg>::SharedPtr client_;
   rclcpp::Subscription<LaserScanMsg>::SharedPtr sub_;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr pub_;
 
   rclcpp::TimerBase::SharedPtr timer_;
   std::shared_ptr<LaserScanMsg> laser_info_;
 
-  void response_callback(rclcpp::Client<DirectionMsg>::Response response) {
-    auto status = response.wait_for(1s);
+  void response_callback(rclcpp::Client<DirectionMsg>::SharedFuture future) {
+
+    auto status = future.wait_for(1s);
+
     if (status == std::future_status::ready) {
       RCLCPP_INFO(this->get_logger(), "Result: success");
+
       auto response = future.get();
       RCLCPP_INFO(this->get_logger(), "Get Direction: %s from Server",
                   response->direction.c_str());
+
       if (response->direction == "Left") {
-        auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
-        cmd_vel->linear.x = 0.1;
-        cmd_vel->angular.z = 0.5;
-        pub_->publish(std::move(cmd_vel));
         RCLCPP_INFO(this->get_logger(), "Go Left");
       } else if (response->direction == "Right") {
-        auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
-        cmd_vel->linear.x = 0.1;
-        cmd_vel->angular.z = -0.5;
-        pub_->publish(std::move(cmd_vel));
+        RCLCPP_INFO(this->get_logger(), "Go Right");
       } else if (response->direction == "Forward") {
-        auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
-        cmd_vel->linear.x = 0.1;
-        cmd_vel->angular.z = 0.0;
-        pub_->publish(std::move(cmd_vel));
+        RCLCPP_INFO(this->get_logger(), "Go Forward");
       } else {
         RCLCPP_ERROR(this->get_logger(), "Failed to call service");
       }
@@ -80,9 +80,9 @@ private:
   void timer_callback() {
     auto request = std::make_shared<DirectionMsg::Request>();
     request->laser_data = *laser_info_;
-    client_->async_send_request(request,
-                                std::bind(&TestService::response_callback, this,
-                                          std::placeholders::_1));
+    RCLCPP_INFO(this->get_logger(), "Requesting Service");
+    client_->async_send_request(
+        request, std::bind(&TestService::response_callback, this, _1));
   }
 
   void scan_callback(const std::shared_ptr<LaserScanMsg> msg) {
